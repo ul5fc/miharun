@@ -187,7 +187,14 @@ miharun example.com --probe
 
 # 前回と比較する
 miharun example.com --json --diff
+
+# 日本語ドメインもそのまま書ける（内部で punycode に変換）
+miharun 例え.テスト
 ```
+
+入力の判定は次のとおりです。`http://` 付きの URL はホスト名だけを取り出し、
+末尾のドット（`example.com.`）は落とします。日本語ドメインは punycode
+（`xn--...`）に変換してから問い合わせます。
 
 ### 主なオプション
 
@@ -349,7 +356,7 @@ miharun/
 │       ├── crtsh.py         証明書透明性ログ
 │       ├── company.py       法人番号 / gBizINFO
 │       └── http_probe.py    HTTP 応答（--probe 時のみ）
-├── tests/                   149 テスト（ネットワーク不使用）
+├── tests/                   157 テスト（ネットワーク不使用）
 ├── scripts/
 │   ├── build_web_rules.py   Web ルールの生成
 │   └── check_text_health.py 文字化け検査（CI で実行）

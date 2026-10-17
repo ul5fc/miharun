@@ -37,8 +37,12 @@ from .report_md import render_markdown
 from .safety import RateLimiter
 from .sources import company, crtsh, dns, http_probe
 
+# ドメインらしさの判定。最上位ラベルは英字（example.com）のほか、
+# 日本語ドメインの punycode（xn--zckzah）も認める。
 DOMAIN_RE = re.compile(
-    r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$", re.IGNORECASE
+    r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
+    r"(?:[a-z]{2,63}|xn--[a-z0-9-]{2,59})$",
+    re.IGNORECASE,
 )
 APEX_TYPES = ("A", "AAAA", "CNAME", "MX", "TXT", "NS")
 MAX_SUBDOMAIN_RESOLVE = 300
@@ -78,6 +82,24 @@ class Palette:
 # 入力の判定
 # ----------------------------------------------------------------------
 
+def _classify(text: str) -> tuple[str, str]:
+    """ドメインらしければ ("domain", 正規化した値) を返す."""
+    candidate = text.rstrip(".").lower()
+    if candidate.isascii() and DOMAIN_RE.match(candidate):
+        return "domain", candidate
+    if candidate and not candidate.isascii():
+        # 日本語ドメイン（例え.テスト）は punycode に直してから判定する。
+        # DNS の問い合わせも証明書透明性ログの検索も punycode で行うため、
+        # ここで変換しておくと以降は ASCII のドメインとして扱える。
+        try:
+            ascii_form = candidate.encode("idna").decode("ascii")
+        except (UnicodeError, ValueError):
+            ascii_form = ""
+        if ascii_form and DOMAIN_RE.match(ascii_form):
+            return "domain", ascii_form
+    return "organization", text
+
+
 def detect_input(text: str) -> tuple[str, str]:
     """入力がドメインか企業名かを判定する.
 
@@ -87,11 +109,8 @@ def detect_input(text: str) -> tuple[str, str]:
     if "://" in text:
         host = urlsplit(text).hostname
         if host:
-            return "domain", host.lower()
-    candidate = text.rstrip(".").lower()
-    if DOMAIN_RE.match(candidate):
-        return "domain", candidate
-    return "organization", text
+            return _classify(host)
+    return _classify(text)
 
 
 # ----------------------------------------------------------------------
