@@ -22,7 +22,13 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from . import __version__
-from .diff import compare, find_snapshot, load_snapshot, render_diff_markdown
+from .diff import (
+    compare,
+    find_snapshot,
+    load_snapshot,
+    render_diff_markdown,
+    report_stem,
+)
 from .fingerprint import detect
 from .insights import build_findings, host_risks
 from .models import HostResult, SurfaceReport, risk_level
@@ -355,7 +361,7 @@ def write_outputs(
     want_json: bool,
 ) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
-    stem = report.domain or "report"
+    stem = report_stem(report.domain)
     written: list[Path] = []
 
     md_path = out_dir / f"miharun-{stem}-report.md"
@@ -607,6 +613,24 @@ def main(argv: list[str] | None = None) -> int:
 
     print_summary(report, technologies, palette)
 
+    if report.domain is None:
+        # 調べる対象のドメインが決まらなかった（企業名の解決に失敗した等）。
+        # 中身の無いレポートを書いても意味がなく、同じ名前で上書きされ続けるため、
+        # ここで終了する。
+        print(
+            palette.yellow(
+                "  調査対象のドメインを決められなかったため、レポートは出力しません。"
+            )
+        )
+        print()
+        return 2
+
+    # 変化検知は「前回の JSON」と比べる機能です。今回の結果で上書きした後に
+    # 比較すると、常に自分自身と比べて「変化なし」になってしまいます。
+    # そのため、write_outputs より先に実行します。
+    if args.diff and report.domain:
+        _run_diff(report, Path(args.out), palette)
+
     written = write_outputs(
         report, technologies, Path(args.out), args.html, args.json
     )
@@ -614,12 +638,6 @@ def main(argv: list[str] | None = None) -> int:
     for path in written:
         print(f"    {path}")
     print()
-
-    if report.domain is None:
-        return 2
-
-    if args.diff and report.domain:
-        _run_diff(report, Path(args.out), palette)
 
     # 危険度に応じて終了コードを返す（CI / スケジュールタスク向け）
     if args.fail_on:
@@ -677,7 +695,7 @@ def _run_diff(report: SurfaceReport, out_dir: Path, palette: Palette) -> None:
             print(palette.dim(f"      …ほか {count - 8} 件"))
     print()
 
-    diff_path = out_dir / f"miharun-{report.domain}-diff.md"
+    diff_path = out_dir / f"miharun-{report_stem(report.domain)}-diff.md"
     diff_path.write_text(
         render_diff_markdown(result, report.domain or ""), encoding="utf-8"
     )

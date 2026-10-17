@@ -7,21 +7,59 @@
     （1週間後）
     miharun example.com --json --diff
 
---diff は前回の JSON を読みhosts と危険度を比較し、
-「新增された」「消えた」「危険度が増えた」を表示します。
+--diff は前回の JSON を読み、ホストと危険度を比較して
+「新たに現れた」「消えた」「危険度が増えた」を表示します。
+
+前回の JSON は、比較を終えたあとに今回の結果で上書きされます
+（`--json` と `--diff` を同時に指定しても正しく比較できます）。
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Optional
 
 from .models import SurfaceReport
 
+# ファイル名に使えない文字（Windows / POSIX の両方を考慮）
+_UNSAFE_FILENAME = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+
+# ファイル名が長くなりすぎないようにする上限
+MAX_STEM_LENGTH = 64
+
+
+def report_stem(domain: str | None) -> str:
+    """レポートのファイル名に使う名前を作る.
+
+    ドメインは通常 ASCII です。企業名から調べたときは日本語のままのほうが
+    分かりやすいので、ファイル名に使えない文字だけを取り除きます
+    （日本語のファイル名は Windows / macOS / Linux のいずれでも使えます）。
+
+    空になった場合や長すぎる場合は、短いハッシュで区別します。
+    以前は日本語だけの企業名がすべて "report" になっていたため、
+    別の企業を調べるたびに同じファイルを上書きしていました。
+    """
+    if not domain:
+        return "unknown"
+
+    cleaned = _UNSAFE_FILENAME.sub("-", domain).strip("-. ")
+    if not cleaned:
+        # 記号だけの入力など、ファイル名にできる文字が残らない場合
+        digest = hashlib.sha256(domain.encode("utf-8")).hexdigest()[:8]
+        return f"name-{digest}"
+
+    if len(cleaned) > MAX_STEM_LENGTH:
+        digest = hashlib.sha256(domain.encode("utf-8")).hexdigest()[:8]
+        cleaned = f"{cleaned[: MAX_STEM_LENGTH - 9]}-{digest}"
+
+    return cleaned
+
 
 def load_snapshot(path: Path) -> Optional[dict]:
-    """前回のレポート JSON を読み込む（無ければ None）. """
+    """前回のレポート JSON を読み込む（無ければ None）。"""
     try:
         with open(path, encoding="utf-8") as handle:
             return json.load(handle)
@@ -30,7 +68,7 @@ def load_snapshot(path: Path) -> Optional[dict]:
 
 
 def find_snapshot(out_dir: Path, domain: str) -> Path:
-    return out_dir / f"miharun-{domain}-report.json"
+    return out_dir / f"miharun-{report_stem(domain)}-report.json"
 
 
 def compare(previous: dict, current: SurfaceReport) -> dict:
@@ -101,7 +139,7 @@ def render_diff_markdown(diff: dict, domain: str) -> str:
     lines.append("")
 
     sections = (
-        ("新增されたホスト", diff["new_hosts"], "+"),
+        ("新たに現れたホスト", diff["new_hosts"], "+"),
         ("消えたホスト", diff["gone_hosts"], "-"),
         ("新たに検出された危険度", diff["new_risks"], "!"),
         ("解消された危険度", diff["resolved_risks"], "ok"),

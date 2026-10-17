@@ -134,6 +134,9 @@ miharun example.co.jp --json --diff   # 増えたホスト・上がった危険�
       - staging.example.co.jp — 開発/検証系ホストが外部公開されています
 ```
 
+比較を終えた**あとで**ベースライン（JSON）を更新するため、
+`--json` と `--diff` は同時に指定してかまいません。
+
 ### 5. CI 連携（`--fail-on`）
 
 危険度スコアが閾値以上になったら、**終了コード 1** で異常終了します。
@@ -346,7 +349,7 @@ miharun/
 │       ├── crtsh.py         証明書透明性ログ
 │       ├── company.py       法人番号 / gBizINFO
 │       └── http_probe.py    HTTP 応答（--probe 時のみ）
-├── tests/                   138 テスト（ネットワーク不使用）
+├── tests/                   149 テスト（ネットワーク不使用）
 ├── scripts/
 │   ├── build_web_rules.py   Web ルールの生成
 │   └── check_text_health.py 文字化け検査（CI で実行）
