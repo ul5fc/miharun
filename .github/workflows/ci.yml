@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    name: テスト (Python ${{ matrix.python-version }})
+    name: テスト (${{ matrix.os }}, Python ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -60,3 +60,12 @@ jobs:
 
       - name: 日本語以外の文字が混入していないか
         run: python scripts/check_text_health.py --strict
+
+      # Windows（英語環境）の既定の文字コードは cp1252 で、日本語を print すると
+      # UnicodeEncodeError で落ちる。各入口が文字コードを整えているかを確かめる。
+      - name: 文字コードが UTF-8 でない環境でも日本語を出力できるか
+        env:
+          PYTHONIOENCODING: cp1252
+        run: |
+          python examples/make_example.py
+          python scripts/check_text_health.py

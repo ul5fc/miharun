@@ -16,8 +16,15 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import urllib.request
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
+sys.path.insert(0, str(ROOT / "src"))
+
+from miharun.console import setup_console  # noqa: E402
 
 BASE = "https://raw.githubusercontent.com/enthec/webappanalyzer/main/src/"
 TECH_DIR = "technologies/"
@@ -288,6 +295,7 @@ def render(rows: list[tuple[str, str, str, str, str]]) -> str:
 
 
 def main() -> None:
+    setup_console()
     print("Wappalyzer の署名データを取得しています…")
     rows, skipped = collect()
     categories = {row[0] for row in rows}
@@ -296,10 +304,7 @@ def main() -> None:
     print(f"  対象技術: {len(technologies)} 種類 / カテゴリ: {len(categories)} 種類")
     print(f"  カテゴリ対象外でスキップ: {skipped} 技術")
 
-    out_path = (
-        Path(__file__).resolve().parent.parent
-        / "src" / "miharun" / "rules_web.py"
-    )
+    out_path = ROOT / "src" / "miharun" / "rules_web.py"
     out_path.write_text(render(rows), encoding="utf-8")
     print(f"  {out_path} に出力しました。")
 

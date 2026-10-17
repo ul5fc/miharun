@@ -341,6 +341,7 @@ miharun/
 ├── pyproject.toml
 ├── src/miharun/
 │   ├── cli.py               コマンド入口
+│   ├── console.py           標準出力の文字コード調整（全入口で使用）
 │   ├── models.py            データ構造
 │   ├── rules.py             日本向け技術判定ルール（手書き）
 │   ├── rules_web.py         Web 技術ルール（Wappalyzer 由来・自動生成）
@@ -356,7 +357,7 @@ miharun/
 │       ├── crtsh.py         証明書透明性ログ
 │       ├── company.py       法人番号 / gBizINFO
 │       └── http_probe.py    HTTP 応答（--probe 時のみ）
-├── tests/                   157 テスト（ネットワーク不使用）
+├── tests/                   161 テスト（ネットワーク不使用）
 ├── scripts/
 │   ├── build_web_rules.py   Web ルールの生成
 │   └── check_text_health.py 文字化け検査（CI で実行）
@@ -378,6 +379,10 @@ python -m unittest discover -s tests -t .
 # 文字化け・文字混入の検査
 python scripts/check_text_health.py --strict
 ```
+
+CI では、日本語を出力できない文字コード（`cp1252`。Windows の英語環境の既定）
+でも各入口が落ちないことを確かめています。Windows で日本語が化ける場合は、
+この検査と同じ条件で再現できます。
 
 pytest を使う場合:
 

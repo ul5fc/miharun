@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from miharun import insights  # noqa: E402
 from miharun.cli import to_json  # noqa: E402
+from miharun.console import setup_console  # noqa: E402
 from miharun.models import (  # noqa: E402
     HostResult,
     Organization,
@@ -133,6 +134,7 @@ def build_report() -> SurfaceReport:
 
 
 def main() -> None:
+    setup_console()
     report = build_report()
     technologies = [
         (category, name, "medium") for category, name in report.technologies

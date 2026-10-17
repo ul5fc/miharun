@@ -18,6 +18,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
+sys.path.insert(0, str(ROOT / "src"))
+
+from miharun.console import setup_console  # noqa: E402
+
 # 検査する対象
 PATTERNS = [
     "src/**/*.py",
@@ -121,6 +125,7 @@ def _foreign_name(char: str) -> str | None:
 
 
 def main() -> int:
+    setup_console()
     parser = argparse.ArgumentParser(description="テキストの健全性を検査する")
     parser.add_argument(
         "--strict",

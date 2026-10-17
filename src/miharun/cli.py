@@ -22,6 +22,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from . import __version__
+from .console import setup_console
 from .diff import (
     compare,
     find_snapshot,
@@ -586,24 +587,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _setup_console() -> None:
-    """Windows のコンソールでも日本語で落ちないようにする.
-
-    - 画面（TTY）に出すとき: 現在の文字コードを保ち、変換できない文字は置換する
-    - ファイルやパイプに流すとき: UTF-8 で書き出す
-    """
-    for stream in (sys.stdout, sys.stderr):
-        try:
-            if stream.isatty():
-                stream.reconfigure(errors="replace")
-            else:
-                stream.reconfigure(encoding="utf-8", errors="replace")
-        except Exception:
-            pass
-
-
 def main(argv: list[str] | None = None) -> int:
-    _setup_console()
+    setup_console()
     args = build_parser().parse_args(argv)
     use_color = (not args.no_color) and sys.stdout.isatty() and not os.environ.get("NO_COLOR")
     palette = Palette(use_color)

@@ -45,6 +45,9 @@
 - 日本語ドメイン（`例え.テスト`）と punycode（`xn--...`）のドメインが
   「企業名」と誤判定され、`--no-subdomains` でも対象を決められず終了していた。
   最上位ラベルが punycode の場合も認め、日本語ドメインは punycode に変換して扱う
+- 日本語を出力する入口（`examples/make_example.py` と `scripts/` の各スクリプト）が、
+  Windows の英語環境（文字コード cp1252）で `UnicodeEncodeError` により落ちていた。
+  文字コードを整える処理を `miharun.console` に集約し、すべての入口で通すようにした
 
 ### ドキュメント
 
