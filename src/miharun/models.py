@@ -32,6 +32,9 @@ class HostResult:
     http_server: Optional[str] = None
     http_title: Optional[str] = None
     http_markers: list[str] = field(default_factory=list)
+    # 応答ヘッダを "ヘッダ名: 値" の形で控えたもの（小文字のヘッダ名）。
+    # ヘッダ名で判定するルール（HTTP_HEADER）だけが使います。
+    http_header_lines: list[str] = field(default_factory=list)
     note: Optional[str] = None
 
     # --- 証明書透明性ログから分かる「露出期間」 ---

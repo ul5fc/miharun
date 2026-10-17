@@ -35,7 +35,7 @@ UA = "miharun-rules-builder/1.0 (+https://github.com/ul5fc/miharun)"
 
 CATEGORY_NAMES: dict[int, str] = {
     1: "CMS", 2: "メッセージボード", 3: "データベース管理", 4: "ドキュメント",
-    6: "EC・Makeshop", 7: "写真ギャラリー", 8: "Wiki", 9: "ホスティングパネル",
+    6: "EC", 7: "写真ギャラリー", 8: "Wiki", 9: "ホスティングパネル",
     11: "ブログ", 12: "JSフレームワーク", 13: "イシュートラッカー",
     14: "動画プレーヤー", 15: "コメントシステム", 16: "セキュリティ",
     18: "Webフレームワーク", 20: "エディタ", 21: "LMS", 22: "Webサーバー",
@@ -104,11 +104,17 @@ def fetch_json(path: str) -> dict:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def regex_to_literal(pattern: str, *, from_html: bool = False) -> str | None:
+def regex_to_literal(
+    pattern: str,
+    *,
+    from_html: bool = False,
+    min_length: int | None = None,
+) -> str | None:
     """Wappalyzer の正規表現を miharun のリテラル部分一致に変換する.
 
     戻り値が None のときは「使う価値がない（曖昧すぎる／依存表現あり）」。
     from_html=True の場合は html シグナル由来としてより厳しく判定する。
+    min_length を渡すと、採用する最小長を上書きする（ヘッダ値は短いため）。
     """
     value = pattern.strip()
     if not value:
@@ -134,7 +140,11 @@ def regex_to_literal(pattern: str, *, from_html: bool = False) -> str | None:
     if any(word in lowered for word in HTML_GENERIC):
         return None
 
-    minimum = MIN_HTML_PATTERN_LENGTH if from_html else MIN_PATTERN_LENGTH
+    minimum = (
+        min_length
+        if min_length is not None
+        else (MIN_HTML_PATTERN_LENGTH if from_html else MIN_PATTERN_LENGTH)
+    )
     if len(literal) < minimum:
         return None
     if not re.search(r"[a-zA-Z]", literal):
@@ -146,9 +156,14 @@ def regex_to_literal(pattern: str, *, from_html: bool = False) -> str | None:
     return literal
 
 
-def collect() -> tuple[list[tuple[str, str, str, str]], int]:
-    """(category, name, pattern, confidence) のリストと統計を作る。"""
-    results: list[tuple[str, str, str, str]] = []
+# ヘッダの値は短いことが多い（"nginx" など）ため、本文より短くてよい。
+# ただし 1 文字・2 文字では誤検知するため 4 文字を下限にする。
+MIN_HEADER_PATTERN_LENGTH = 4
+
+
+def collect() -> tuple[list[tuple[str, str, str, str, str]], int]:
+    """(category, name, pattern, confidence, source) のリストと統計を作る。"""
+    results: list[tuple[str, str, str, str, str]] = []
     seen: set[tuple[str, str]] = set()
     skipped_category = 0
 
@@ -171,7 +186,7 @@ def collect() -> tuple[list[tuple[str, str, str, str]], int]:
                 continue
             category = CATEGORY_NAMES[categories[0]]
 
-            patterns: list[str] = []
+            body_patterns: list[str] = []
 
             for src in tech.get("scriptSrc") or []:
                 lit = regex_to_literal(src)
@@ -180,17 +195,33 @@ def collect() -> tuple[list[tuple[str, str, str, str]], int]:
                     # scriptSrc でも HTML 共通語を含むものは弾く
                     if any(word in lowered_lit for word in HTML_GENERIC):
                         continue
-                    patterns.append(lit)
+                    body_patterns.append(lit)
 
             for html in tech.get("html") or []:
                 lit = regex_to_literal(html, from_html=True)
                 if lit:
-                    patterns.append(lit)
+                    body_patterns.append(lit)
 
-            for header in (tech.get("headers") or {}).keys():
-                if header.lower() in GENERIC_KEYS:
+            # headers は「ヘッダ名 → 値の正規表現」の対応表です。
+            # ヘッダ名そのもの（Host・platform・Node など）を本文の文字列として
+            # 登録してはいけません。"hosting" や "publishing platform"、
+            # "parentNode" に誤って一致してしまうためです。
+            # 応答ヘッダとだけ突き合わせるため、"ヘッダ名: 値" の形にします。
+            header_patterns: list[str] = []
+            for header_name, header_value in (tech.get("headers") or {}).items():
+                lit = regex_to_literal(
+                    header_value, min_length=MIN_HEADER_PATTERN_LENGTH
+                )
+                if not lit:
                     continue
-                patterns.append(header)
+                lowered_lit = lit.lower()
+                if lowered_lit in GENERIC_WORDS:
+                    continue
+                if not re.search(r"[a-z0-9]", lowered_lit):
+                    continue
+                if len(lowered_lit) < MIN_HEADER_PATTERN_LENGTH:
+                    continue
+                header_patterns.append(f"{header_name.lower()}: {lowered_lit}")
 
             # meta キー（og:image などの HTML 共通語を含むものはここで弾く）
             for key in (tech.get("meta") or {}).keys():
@@ -201,27 +232,31 @@ def collect() -> tuple[list[tuple[str, str, str, str]], int]:
                     continue
                 if len(lowered_key) < MIN_HTML_PATTERN_LENGTH:
                     continue
-                patterns.append(key)
+                body_patterns.append(key)
 
-            if not patterns:
+            if not body_patterns and not header_patterns:
                 continue
 
-            unique: list[str] = []
-            for pattern in patterns:
-                key = (name, pattern)
-                if key not in seen:
-                    seen.add(key)
-                    unique.append(pattern)
-
-            # 固有性の高い（長い）パターンを優先し、上限で切る
-            unique = sorted(unique, key=len, reverse=True)[:MAX_PATTERNS_PER_TECH]
-            for pattern in unique:
-                results.append((category, name, pattern, "medium"))
+            # 固有性の高い（長い）パターンを優先し、種別ごとに上限で切る
+            for source, pool in (
+                ("HTTP", body_patterns),
+                ("HTTP_HEADER", header_patterns),
+            ):
+                unique: list[str] = []
+                for pattern in pool:
+                    key = (source, name, pattern)
+                    if key not in seen:
+                        seen.add(key)
+                        unique.append(pattern)
+                for pattern in sorted(unique, key=len, reverse=True)[
+                    :MAX_PATTERNS_PER_TECH
+                ]:
+                    results.append((category, name, pattern, "medium", source))
 
     return results, skipped_category
 
 
-def render(rows: list[tuple[str, str, str, str]]) -> str:
+def render(rows: list[tuple[str, str, str, str, str]]) -> str:
     lines = [
         '"""Wappalyzer 由来の Web 技術判定ルール（自動生成・手で編集しないこと）.',
         "",
@@ -229,7 +264,7 @@ def render(rows: list[tuple[str, str, str, str]]) -> str:
         "生成: python scripts/build_web_rules.py",
         "",
         "これらのルールは HTTP 応答のみを使うため、`--probe` 指定時のみ有効です。",
-        "ブラウザ将领ある HTML の中に眠る指紋を読み取るためのルールです。",
+        "ブラウザが読み込む HTML の中に眠る指紋を読み取るためのルールです。",
         '"""',
         "",
         "from __future__ import annotations",
@@ -239,13 +274,13 @@ def render(rows: list[tuple[str, str, str, str]]) -> str:
         "WEB_RULES: list[Rule] = [",
     ]
     current_category = None
-    for category, name, pattern, confidence in rows:
+    for category, name, pattern, confidence, source in rows:
         if category != current_category:
             lines.append(f"    # --- {category} ---")
             current_category = category
         escaped = pattern.replace("\\", "\\\\").replace('"', '\\"')
         lines.append(
-            f'    Rule("{category}", "{name}", ("{escaped}",), ("HTTP",), "{confidence}"),'
+            f'    Rule("{category}", "{name}", ("{escaped}",), ("{source}",), "{confidence}"),'
         )
     lines.append("]")
     lines.append("")

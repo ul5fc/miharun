@@ -291,6 +291,7 @@ def _probe_hosts(hosts: list[HostResult], limiter: RateLimiter, timeout: float) 
         host.http_server = info.get("server")
         host.http_title = info.get("title")
         host.http_markers = list(info.get("markers") or [])
+        host.http_header_lines = list(info.get("headers") or [])
 
 
 def _host_records(host: HostResult) -> dict[str, list[str]]:
@@ -301,6 +302,9 @@ def _host_records(host: HostResult) -> dict[str, list[str]]:
         http_values.insert(0, host.http_server)
     if http_values:
         records["HTTP"] = http_values
+    # 応答ヘッダそのもの（"server: nginx" の形）で判定するルール用
+    if host.http_header_lines:
+        records["HTTP_HEADER"] = list(host.http_header_lines)
     return records
 
 
@@ -540,7 +544,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--diff",
         action="store_true",
-        help="前回结果显示の JSON と比較して変化を報告する（変化検知）",
+        help="前回の JSON と比較して変化を報告する（変化検知）",
     )
     parser.add_argument(
         "--fail-on",

@@ -96,6 +96,16 @@ def probe_host(host: str, limiter: RateLimiter | None = None, timeout: float = 8
     return None
 
 
+def _header_lines(headers) -> list[str]:
+    """応答ヘッダを "ヘッダ名: 値" の形にそろえる（ヘッダ名は小文字）.
+
+    ヘッダ名で判定するルール（HTTP_HEADER）だけがこれを使います。
+    """
+    if not headers:
+        return []
+    return [f"{name.lower()}: {value}" for name, value in headers.items()]
+
+
 def _fetch(url: str, timeout: float):
     request = urllib.request.Request(
         url,
@@ -108,11 +118,13 @@ def _fetch(url: str, timeout: float):
         with urllib.request.urlopen(request, timeout=timeout) as resp:
             status = getattr(resp, "status", None) or resp.getcode()
             server = resp.headers.get("Server")
+            header_lines = _header_lines(resp.headers)
             body = resp.read(MAX_BODY_BYTES)
     except urllib.error.HTTPError as exc:
         # 401/403 なども「応答があった」という情報になる
         status = exc.code
         server = exc.headers.get("Server") if exc.headers else None
+        header_lines = _header_lines(exc.headers)
         try:
             body = exc.read(MAX_BODY_BYTES)
         except Exception:
@@ -133,4 +145,5 @@ def _fetch(url: str, timeout: float):
         "title": title,
         "url": url,
         "markers": find_markers(body),
+        "headers": header_lines,
     }

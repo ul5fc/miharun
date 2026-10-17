@@ -26,7 +26,7 @@ $ miharun 株式会社サンプル
 |---|---|
 | 証明書透明性ログ（crt.sh） | 公開されているサブドメイン・**いつから公開されているか** |
 | DNS（DNS over HTTPS） | A / AAAA / MX / NS / TXT / CNAME / PTR |
-| `--probe` 指定時の HTTP 応答 | Server ヘッダ・`<title>`・**Web 技術の指紋** |
+| `--probe` 指定時の HTTP 応答 | 応答ヘッダ（`Server` など）・`<title>`・**Web 技術の指紋** |
 
 **既定では対象ホストに 1 バイトもリクエストを送りません。**
 `--probe` を付けたときだけ HTTP 応答を取りに行きます（robots.txt を確認し、1 ホスト 1 回だけ）。
@@ -67,37 +67,53 @@ dev.example-corp.co.jp     0.5 年
 
 ![危険度と気づいた点](docs/images/report-findings.png)
 
-### 3. Web 技術の自動判定（約 1,900 技術）
+### 3. Web 技術の自動判定（1,800 種類以上）
 
-`--probe` を付けると、読み込まれる JavaScript の置き場所や HTML の指紋から
-使われている技術を判定します。
+`--probe` を付けると、HTTP 応答ヘッダ・読み込まれる JavaScript の置き場所・
+HTML の指紋から、使われている技術を判定します。
 
 ```console
-$ miharun wordpress.org --probe
-  - [CMS] WordPress (medium)
-  - [WordPressプラグイン] Gutenberg (medium)
-  - [Webサーバー] nginx (medium)
-  - [動画プレーヤー] YouTube (medium)
-  - [ホスティング] Hostinger (medium)
+$ miharun example.com --probe
+
+  推定される技術
+    - [CDN・WAF] Cloudflare (high)
+    - [DNS] Cloudflare (high)
+    - [セキュリティ] DMARC 設定あり (high)
+    - [CDN] Cloudflare (medium)
 ```
+
+上の 4 行は `example.com` への実測です。1・2 行目は NS レコード、
+3 行目は TXT レコード、4 行目は `Server` ヘッダから判定しています。
+本文やヘッダに手がかりが多いサイトでは、CMS や JS フレームワーク、
+解析タグなども検出されます。
 
 判定データは [Wappalyzer（enthec/webappanalyzer・MIT）](https://github.com/enthec/webappanalyzer)
 の署名データから自動生成しています（`scripts/build_web_rules.py`）。
-**約 1,900 技術 / 66 カテゴリ**を、依存ライブラリゼロで判定します。
+**1,800 種類以上の技術 / 66 カテゴリ / 2,200 件のルール**を、
+依存ライブラリゼロで判定します。
 
 | 分類 | 判定できるもの（抜粋） |
 |---|---|
-| CMS | WordPress / Drupal / Joomla / Movable Type / EC-CUBE |
-| EC | Shopify / BigCommerce / BASE / STORES / カラーミーショップ / WooCommerce |
+| CMS | WordPress / Drupal / EC-CUBE / Movable Type |
+| EC | WooCommerce / BigCommerce / PrestaShop |
 | Webサーバー | nginx / Apache / LiteSpeed / IIS / Caddy |
-| JSフレームワーク | React / Vue.js / Angular / Svelte / Next.js |
-| ホスティング | AWS / Google Cloud / Azure / Heroku / Vercel |
-| 決済 | Stripe / PayPal / Square |
-| セキュリティ | Cloudflare / reCAPTCHA / Sentry |
+| JSフレームワーク | React / AngularJS / Alpine.js / Backbone.js |
+| ホスティング | Bluehost / Hetzner / Hostinger |
+| 静的ホスティング | GitHub Pages / Netlify / Vercel / Heroku |
+| 決済代行 | PayPal / Square |
+| セキュリティ | DMARC 設定あり / reCAPTCHA |
+| レンタルサーバー | さくら / エックスサーバー / ロリポップ / ConoHa（DNS から） |
 
-> 誤検知を避けるため、HTML タグ名や `og:image` のような
-> どのページにも現れる語はパターンから除外しています。
-> 通常のページでは何も検出しないことをテストで保証しています。
+> **誤検知対策**（実際に踏んだ不具合を直した結果です）
+>
+> * HTML タグ名や `og:image` のようなどこにでも現れる語はパターンから除外
+> * HTTP ヘッダの**名前**（`Host`・`platform`・`Node` など）は、
+>   本文の文字列としては使いません。これらは「**その名前のヘッダの値**」が
+>   一致したときだけ判定します（`HTTP_HEADER`）
+> * 本文に `platform: hostinger` のようなヘッダ行を書いても判定されません
+>
+> ただし機械的な推定である以上、**誤検知はゼロではありません**。
+> レポートにも「推定」であることを明記しています。
 
 ### 4. 変化検知（`--diff`）
 
@@ -190,23 +206,38 @@ miharun example.com --json --diff
 
 ## 出力例
 
+`example.com`（RFC 2606 で**例示用**と定められたドメイン）への実測です。
+値は時期やネットワークによって変わります。
+
 ```console
-$ miharun jprs.co.jp
+$ miharun example.com
 
-jprs.co.jp の外部公開マップ
+miharun 0.1.0 - 外部公開マップを作成します
+  対象: example.com
 
-  A    117.104.133.165
-  MX   jprs.in.tmems-jp.trendmicro.com
-  NS   ns1.jprs.co.jp, ns2.jprs.co.jp, ns3.jprs.co.jp, ns4.jprs.co.jp
+  証明書透明性ログを照会しています…
+  6 件のホストを確認しています…
 
-  見つかったホスト: 15 件（うち名前解決可 11 件）
+example.com の外部公開マップ
+
+  A    104.20.23.154, 172.66.147.243
+  NS   hera.ns.cloudflare.com, elliott.ns.cloudflare.com
+
+  見つかったホスト: 7 件（うち名前解決可 3 件）
+
+  危険度スコア: 20/100 （中）  ####................
 
   推定される技術
-    - [クラウド] Microsoft Azure (high)
-    - [DNS] JPRS (medium)
-    - [メール] Trend Micro Email Security (high)
-    - [SaaS] Google Search Console (high)
+    - [CDN・WAF] Cloudflare (high)
+    - [DNS] Cloudflare (high)
     - [セキュリティ] DMARC 設定あり (high)
+
+  気づいた点
+    ・長年公開され続けているホスト: example.com [危険度 20]
+    ・長年公開され続けているホスト: www.example.com [危険度 20]
+
+  レポートを出力しました:
+    out\miharun-example.com-report.md
 ```
 
 Markdown / HTML / JSON のレポートには、ホスト一覧・DNS レコード・技術判定・
@@ -315,7 +346,7 @@ miharun/
 │       ├── crtsh.py         証明書透明性ログ
 │       ├── company.py       法人番号 / gBizINFO
 │       └── http_probe.py    HTTP 応答（--probe 時のみ）
-├── tests/                   133 テスト（ネットワーク不使用）
+├── tests/                   138 テスト（ネットワーク不使用）
 ├── scripts/
 │   ├── build_web_rules.py   Web ルールの生成
 │   └── check_text_health.py 文字化け検査（CI で実行）

@@ -14,7 +14,9 @@ Web 技術のルールは rules_web.py にあり、Wappalyzer 由来で自動生
     category   … レポートでの分類（例: "メール"）
     name       … 表示名（例: "Google Workspace"）
     patterns   … 小文字で部分一致させる文字列のタプル
-    sources    … どのレコード種別を見るか（"NS" "MX" "TXT" "CNAME" "PTR" "HTTP"）
+    sources    … どのレコード種別を見るか
+                 （"NS" "MX" "TXT" "CNAME" "PTR" "HTTP" "HTTP_HEADER"）
+                 "HTTP_HEADER" は応答ヘッダを "ヘッダ名: 値" の形にしたもの
     confidence … "high" | "medium" | "low"
 
 注意:

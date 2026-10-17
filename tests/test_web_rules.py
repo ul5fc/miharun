@@ -26,7 +26,18 @@ class TestRuleVolume(unittest.TestCase):
 
     def test_all_web_rules_use_http_source(self):
         for rule in WEB_RULES:
-            self.assertIn("HTTP", rule.sources)
+            self.assertTrue(
+                "HTTP" in rule.sources or "HTTP_HEADER" in rule.sources,
+                msg=f"{rule.name} の sources が不正: {rule.sources}",
+            )
+
+    def test_header_rules_exist(self):
+        header_rules = [r for r in WEB_RULES if "HTTP_HEADER" in r.sources]
+        self.assertGreater(len(header_rules), 0)
+        # ヘッダ由来のルールは「ヘッダ名: 値」の形になっていること
+        for rule in header_rules:
+            for pattern in rule.patterns:
+                self.assertIn(": ", pattern, msg=f"{rule.name}: {pattern}")
 
     def test_all_web_rules_have_patterns(self):
         for rule in WEB_RULES:
@@ -79,6 +90,37 @@ class TestPrecision(unittest.TestCase):
     def test_generic_words_do_not_trigger(self):
         body = b"<div class=content><script src=/assets/app.js></script><p>hello</p></div>"
         self.assertEqual(names_for(body), set())
+
+    def test_header_names_in_body_do_not_trigger(self):
+        """ヘッダ名を本文の文字列として扱っていた頃の誤検知を防ぐ.
+
+        `platform` という値や `hosting` という語、`parentNode` が本文に
+        あるだけでホスティング業者や CMS を検出してはいけません。
+        """
+        body = (
+            b"<title>Blog Tool, Publishing Platform, and CMS</title>"
+            b"<div>we offer hosting and hosting plans</div>"
+            b"<script>f.parentNode.insertBefore(x, y)</script>"
+            b"<a href=https://example.com/hosting/>hosting</a>"
+        )
+        self.assertEqual(names_for(body), set())
+
+    def test_body_cannot_impersonate_a_response_header(self):
+        """本文にヘッダ行を書いても、ヘッダ判定ルールは反応しないこと."""
+        found = {
+            name
+            for _c, name, _conf in detect({"HTTP": ["platform: hostinger"]})
+        }
+        self.assertNotIn("Hostinger", found)
+
+    def test_response_header_triggers_header_rule(self):
+        """実際の応答ヘッダ（"ヘッダ名: 値"）ではきちんと判定できること."""
+        found = {name for _c, name, _conf in detect({"HTTP_HEADER": ["platform: hostinger"]})}
+        self.assertIn("Hostinger", found)
+
+    def test_header_patterns_are_not_scanned_in_body(self):
+        markers = find_markers(b"<p>platform: hostinger</p>")
+        self.assertNotIn("platform: hostinger", markers)
 
 
 class TestFindMarkers(unittest.TestCase):
