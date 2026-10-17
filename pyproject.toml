@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "miharun"
+version = "0.1.0"
+description = "組織の外部公開マップを日本語で作るパッシブ偵察ツール"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "ul5fc" }]
+keywords = ["security", "recon", "osint", "passive", "japan", "dns", "certificate-transparency"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: Japanese",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Topic :: Security",
+]
+# 依存ライブラリはありません（標準ライブラリのみで動作します）
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+miharun = "miharun.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/ul5fc/miharun"
+Repository = "https://github.com/ul5fc/miharun"
+Issues = "https://github.com/ul5fc/miharun/issues"
+Changelog = "https://github.com/ul5fc/miharun/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

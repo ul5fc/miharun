@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# テスト・キャッシュ
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# miharun の出力物
+out/
+examples/out/
+*.report.md
+*.report.html
+*.report.json
+
+# エディタ・OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
